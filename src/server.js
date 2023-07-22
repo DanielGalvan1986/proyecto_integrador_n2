@@ -14,15 +14,15 @@ server.use(express.urlencoded({ extended: true }));
 
 // método GET = Obtener los registros (Permite filtros)
 
-server.get('/muebles', async (req, res) => {
-    const { categoria, precio_mayor_o_igual_que, precio_menor_o_igual_que } = req.query;
+server.get('/api/v1/muebles', async (req, res) => {
+    const { categoria, precio_gte, precio_lte } = req.query;
     let muebles = [];
 
     try {
         const collection = await conectToCollection('muebles');
-        if (categoria) muebles = await collection.find({ categoria }).toArray();
-        else if (precio_mayor_o_igual_que) muebles = await collection.find({ precio: { $gte: Number(precio_mayor_o_igual_que) } }).sort({precio:1}).toArray();
-        else if (precio_menor_o_igual_que) muebles = await collection.find({ precio: { $lte: Number(precio_menor_o_igual_que) } }).sort({precio:-1}).toArray();
+        if (categoria) muebles = await collection.find({ categoria }).sort({ nombre: 1 }).toArray();
+        else if (precio_gte) muebles = await collection.find({ precio: { $gte: Number(precio_gte) } }).sort({ precio: 1}).toArray();
+        else if (precio_lte) muebles = await collection.find({ precio: { $lte: Number(precio_lte) } }).sort({ precio: -1}).toArray();
         else muebles = await collection.find().toArray();
 
         res.status(200).send(JSON.stringify({ payload: muebles }));
@@ -36,7 +36,7 @@ server.get('/muebles', async (req, res) => {
 
 // método GET = Obtener un registro en específico
 
-server.get('/muebles/:codigo', async (req, res) => {
+server.get('/api/v1/muebles/:codigo', async (req, res) => {
     const { codigo } = req.params;
 
     try {
@@ -56,7 +56,7 @@ server.get('/muebles/:codigo', async (req, res) => {
 
 // Método POST = Crea un nuevo registro
 
-server.post('/muebles', async (req, res) => {
+server.post('/api/v1/muebles', async (req, res) => {
     const { nombre, precio, categoria } = req.body;
 
     if (!nombre || !precio || !categoria) {
@@ -80,24 +80,21 @@ server.post('/muebles', async (req, res) => {
 
 // Método PUT = Modifica un registo en específico
 
-server.put('/muebles/:codigo', async (req, res) => {
+server.put('/api/v1/muebles/:codigo', async (req, res) => {
     const { codigo } = req.params;
     const { nombre, precio, categoria } = req.body;
-    const mueble = { nombre, precio, categoria };
 
-    if (!codigo) {
-        return res.status(400).send(messageNotFound);
-    }
-    else if (!nombre && !precio && !categoria) {
-        return res.status(400).send(messageDatosFaltantes);
-    }
-
+    if (!codigo || !nombre || !precio || !categoria) return res.status(400).send(messageDatosFaltantes);
 
     try {
         const collection = await conectToCollection('muebles');
+        let mueble = await collection.findOne({ codigo: Number(codigo) });
+        if (!mueble) return res.status(400).send(messageNotFound);
+        mueble = {codigo: Number(codigo), nombre, precio, categoria};
+
         await collection.updateOne({ codigo: Number(codigo) }, { $set: mueble });
 
-        res.status(200).send(JSON.stringify('Registro actualizado', { payload: mueble }));
+        res.status(200).send(JSON.stringify({message: 'Registro actualizado', payload: mueble }));
     } catch (error) {
         console.log(error.message);
         res.status(500).send(messageServerError);
@@ -107,7 +104,7 @@ server.put('/muebles/:codigo', async (req, res) => {
 });
 // Método DELETE = Elimina un registro en específico
 
-server.delete('/muebles/:codigo', async (req, res) => {
+server.delete('/api/v1/muebles/:codigo', async (req, res) => {
     const { codigo } = req.params;
 
     try {
@@ -118,7 +115,7 @@ server.delete('/muebles/:codigo', async (req, res) => {
 
         await collection.deleteOne({ codigo: { $eq: Number(codigo) } });
 
-        res.status(200).send(JSON.stringify({message: 'registro eliminiado' }));
+        res.status(200).send(JSON.stringify({message: 'Registro eliminado' }));
     } catch (error) {
         console.log(error.message);
         res.status(500).send(messageServerError);
@@ -136,5 +133,5 @@ server.use('*', (req, res) => {
 // Oyente de peticiones
 
 server.listen(process.env.SERVER_PORT, process.env.SERVER_HOST, () => {
-    console.log(`Ejecutandose en http://${process.env.SERVER_HOST}:${process.env.SERVER_PORT}/muebles`);
+    console.log(`Ejecutandose en http://${process.env.SERVER_HOST}:${process.env.SERVER_PORT}/api/v1/muebles`);
 });
